@@ -836,7 +836,10 @@ function renderizarPestañasPrincipales() {
                 <div class="contenedor-acordeon-body" id="cuerpoOp-${contenedor}">
                     <div class="mini-seccion">
                         <label>⏱️ Hora de Inicio</label>
-                        <div class="hora-fija">${op.hora_inicio || '—'}</div>
+                        <div class="mini-fila">
+                            <div class="hora-fija" style="flex:1;">${op.hora_inicio || '—'}</div>
+                            ${rolUsuarioActual === 'super' ? `<button class="btn-mini btn-mini-azul" data-corregir-hora="inicio" data-corregir-contenedor="${contenedor}">✏️ Corregir</button>` : ''}
+                        </div>
                     </div>
                     <div class="mini-seccion">
                         <label>🔴 Hora de Finalización</label>
@@ -877,11 +880,17 @@ function renderizarPestañasPrincipales() {
                 <div class="contenedor-acordeon-body" id="cuerpoFin-${contenedor}">
                     <div class="mini-seccion">
                         <label>⏱️ Hora de Inicio</label>
-                        <div class="hora-fija">${op.hora_inicio || '—'}</div>
+                        <div class="mini-fila">
+                            <div class="hora-fija" style="flex:1;">${op.hora_inicio || '—'}</div>
+                            ${rolUsuarioActual === 'super' ? `<button class="btn-mini btn-mini-azul" data-corregir-hora="inicio" data-corregir-contenedor="${contenedor}">✏️ Corregir</button>` : ''}
+                        </div>
                     </div>
                     <div class="mini-seccion">
                         <label>✅ Hora de Finalización</label>
-                        <div class="hora-fija">${op.hora_fin || '—'}</div>
+                        <div class="mini-fila">
+                            <div class="hora-fija" style="flex:1;">${op.hora_fin || '—'}</div>
+                            ${rolUsuarioActual === 'super' ? `<button class="btn-mini btn-mini-azul" data-corregir-hora="fin" data-corregir-contenedor="${contenedor}">✏️ Corregir</button>` : ''}
+                        </div>
                     </div>
                     <div class="mini-seccion">
                         <label>👥 Funcionarios (<span id="contadorFuncLista-${contenedor}">0</span>)</label>
@@ -896,7 +905,7 @@ function renderizarPestañasPrincipales() {
     function conectarAcordeonLista(lista, atributoToggle, prefijoCuerpo, prefijoBLs, funcionariosEditables) {
         lista.querySelectorAll(`[${atributoToggle}]`).forEach(btn => {
             btn.onclick = (e) => {
-                if (e.target.closest('[data-abrir-registro], [data-finalizar-lista], [data-agregar-func-lista], .btn-quitar-func, .btn-ver-bls, input')) return;
+                if (e.target.closest('[data-abrir-registro], [data-finalizar-lista], [data-agregar-func-lista], [data-corregir-hora], .btn-quitar-func, .btn-ver-bls, input')) return;
                 const contenedor = btn.getAttribute(atributoToggle);
                 const body = document.getElementById(prefijoCuerpo + contenedor);
                 const yaEstabaAbierto = body.classList.contains('abierto');
@@ -920,6 +929,11 @@ function renderizarPestañasPrincipales() {
     });
     listaOp.querySelectorAll('[data-agregar-func-lista]').forEach(btn => {
         btn.onclick = () => agregarFuncionarioDesdeLista(btn.getAttribute('data-agregar-func-lista'));
+    });
+    [listaOp, listaFin].forEach(lista => {
+        lista.querySelectorAll('[data-corregir-hora]').forEach(btn => {
+            btn.onclick = () => corregirHoraDesdeLista(btn.getAttribute('data-corregir-contenedor'), btn.getAttribute('data-corregir-hora'));
+        });
     });
     listaOp.querySelectorAll('input[id^="horaFinInputLista-"], input[id^="horaFuncInputLista-"]').forEach(inp => {
         inp.addEventListener('input', (e) => formatearHoraEnVivo(e.target));
@@ -1281,6 +1295,12 @@ function buscar(queryOriginal) {
 let contenedorActualOperacion = null;
 let nombreCompletoUsuarioActual = '';
 let rolUsuarioActual = 'user';
+
+// Solo el Admin (rol "super") puede corregir una hora ya registrada — Programador y
+// Proveedor la ven bloqueada en cuanto se guarda, como siempre.
+function esAdminActual() {
+    return rolUsuarioActual === 'super';
+}
 let funcionariosContenedorActual = [];
 
 function formatearHoraEnVivo(el) {
@@ -1313,6 +1333,10 @@ async function cargarOperacion(contenedor) {
     const finMeta = document.getElementById('finMeta');
     const btnInicio = document.getElementById('btnInicioOperacion');
     const btnFin = document.getElementById('btnFinOperacion');
+    // Solo el Admin (rol "super") puede corregir una hora que ya quedó registrada — por
+    // si el Proveedor o el Programador se equivocaron al escribirla. Para todos los demás,
+    // una vez guardada, la hora queda bloqueada como siempre.
+    const puedeCorregir = esAdminActual();
 
     inicioInput.value = horaActualStr(); inicioInput.disabled = false; inicioMeta.textContent = '';
     finInput.value = ''; finInput.disabled = false; finMeta.textContent = '';
@@ -1330,20 +1354,24 @@ async function cargarOperacion(contenedor) {
 
     if (data.hora_inicio) {
         inicioInput.value = data.hora_inicio;
-        inicioInput.disabled = true;
-        inicioMeta.textContent = `Iniciado por ${data.iniciado_por || '—'}`;
-        btnInicio.disabled = true;
-        btnInicio.textContent = '✅ OPERACIÓN INICIADA';
+        inicioInput.disabled = !puedeCorregir;
+        inicioMeta.textContent = puedeCorregir
+            ? `Iniciado por ${data.iniciado_por || '—'} — 🔓 puedes corregir la hora`
+            : `Iniciado por ${data.iniciado_por || '—'}`;
+        btnInicio.disabled = !puedeCorregir;
+        btnInicio.textContent = puedeCorregir ? '💾 CORREGIR HORA DE INICIO' : '✅ OPERACIÓN INICIADA';
         finInput.disabled = false;
         finInput.value = horaActualStr();
         btnFin.disabled = false;
     }
     if (data.hora_fin) {
         finInput.value = data.hora_fin;
-        finInput.disabled = true;
-        finMeta.textContent = `Finalizado por ${data.finalizado_por || '—'}`;
-        btnFin.disabled = true;
-        btnFin.textContent = '✅ OPERACIÓN FINALIZADA';
+        finInput.disabled = !puedeCorregir;
+        finMeta.textContent = puedeCorregir
+            ? `Finalizado por ${data.finalizado_por || '—'} — 🔓 puedes corregir la hora`
+            : `Finalizado por ${data.finalizado_por || '—'}`;
+        btnFin.disabled = !puedeCorregir;
+        btnFin.textContent = puedeCorregir ? '💾 CORREGIR HORA DE FINALIZACIÓN' : '✅ OPERACIÓN FINALIZADA';
     }
 }
 
@@ -1395,6 +1423,44 @@ async function agregarFuncionarioDesdeLista(contenedor) {
     horaInput.value = horaActualStr();
     mostrarToast(`✅ Funcionario agregado — ${hora}`);
     cargarFuncionariosEnLista(contenedor);
+}
+
+// El Admin (rol "super") corrige aquí una Hora de Inicio o Finalización que ya había
+// quedado registrada — por ejemplo, si el Proveedor la escribió mal. Programador y
+// Proveedor nunca llegan a ver este botón (no se les dibuja en la pantalla).
+async function corregirHoraDesdeLista(contenedor, tipo) {
+    if (!esAdminActual()) return; // resguardo extra, por si alguien manipula el DOM a mano
+    const esInicio = tipo === 'inicio';
+    const opActual = operacionesPorContenedor.get(contenedor) || {};
+    const valorActual = esInicio ? (opActual.hora_inicio || '') : (opActual.hora_fin || '');
+
+    const entrada = prompt(`Corregir Hora de ${esInicio ? 'Inicio' : 'Finalización'} de ${contenedor}\n(formato de 24 horas, ej: 08:10 o 14:50)`, valorActual);
+    if (entrada === null) return; // canceló, no se toca nada
+    const nuevaHora = entrada.trim();
+
+    if (!horaValida(nuevaHora)) { mostrarToast('⚠️ Formato de hora inválido, ej: 08:10', 4000); return; }
+    if (horaEsFutura(nuevaHora)) { mostrarToast('⚠️ La hora no puede ser posterior a la hora actual del sistema', 4000); return; }
+    if (esInicio && opActual.hora_fin && nuevaHora >= opActual.hora_fin) {
+        mostrarToast('⚠️ La Hora de Inicio debe quedar antes de la Hora de Finalización ya registrada', 4500);
+        return;
+    }
+    if (!esInicio && opActual.hora_inicio && nuevaHora <= opActual.hora_inicio) {
+        mostrarToast('⚠️ La Hora de Finalización debe quedar después de la Hora de Inicio', 4500);
+        return;
+    }
+
+    const hoy = new Date().toISOString().slice(0, 10);
+    const cambios = esInicio
+        ? { contenedor, fecha: hoy, hora_inicio: nuevaHora }
+        : { contenedor, fecha: hoy, hora_fin: nuevaHora };
+
+    const { error } = await sb.from('operaciones_contenedor').upsert(cambios, { onConflict: 'contenedor,fecha' });
+    if (error) { mostrarToast('❌ ' + error.message, 5000); return; }
+
+    operacionesPorContenedor.set(contenedor, { ...opActual, ...cambios });
+    mostrarToast(`✅ Hora de ${esInicio ? 'Inicio' : 'Finalización'} corregida — ${nuevaHora}`);
+    renderizarPestañasPrincipales();
+    renderizarPorAgencia();
 }
 
 async function finalizarDesdeLista(contenedor) {
@@ -1477,9 +1543,15 @@ async function marcarOperacion(tipo) {
         return;
     }
 
-    input.disabled = true;
-    meta.textContent = `${esInicio ? 'Iniciado' : 'Finalizado'} por ${nombreCompletoUsuarioActual}`;
-    btn.textContent = esInicio ? '✅ OPERACIÓN INICIADA' : '✅ OPERACIÓN FINALIZADA';
+    const puedeCorregir = esAdminActual();
+    input.disabled = !puedeCorregir;
+    meta.textContent = puedeCorregir
+        ? `${esInicio ? 'Iniciado' : 'Finalizado'} por ${nombreCompletoUsuarioActual} — 🔓 puedes corregir la hora`
+        : `${esInicio ? 'Iniciado' : 'Finalizado'} por ${nombreCompletoUsuarioActual}`;
+    btn.disabled = !puedeCorregir;
+    btn.textContent = puedeCorregir
+        ? (esInicio ? '💾 CORREGIR HORA DE INICIO' : '💾 CORREGIR HORA DE FINALIZACIÓN')
+        : (esInicio ? '✅ OPERACIÓN INICIADA' : '✅ OPERACIÓN FINALIZADA');
     mostrarToast(`✅ ${esInicio ? 'Inicio' : 'Finalización'} de operación registrado — ${hora}`);
 
     const opExistente = operacionesPorContenedor.get(contenedorActualOperacion) || {};
