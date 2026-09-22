@@ -818,7 +818,7 @@ function renderizarPestañasPrincipales() {
     finalizados.sort((a, b) => (operacionesPorContenedor.get(b).hora_fin || '').localeCompare(operacionesPorContenedor.get(a).hora_fin || ''));
     pendientes.sort((a, b) => a.localeCompare(b));
 
-    document.getElementById('contadorOperacion').textContent = enOperacion.length;
+    document.getElementById('contadorOperacion').textContent = enOperacion.length + pendientes.length;
     document.getElementById('contadorFinalizados').textContent = finalizados.length;
 
     // AGREGADO: lista desplegada de contenedores pendientes de iniciar, para
