@@ -113,9 +113,10 @@
     }
     .predictivo-vacio { padding: 20px 16px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
 
-    .predictivo-item.estado-iniciado { background: #e8f5e9; border-left: 4px solid #2e7d32; }
+    .predictivo-item.estado-iniciado { background: #fff8e1; border-left: 4px solid #f9a825; }
     .predictivo-item.estado-finalizado { background: #eceff1; border-left: 4px solid #78909c; }
     .etiqueta-estado { font-size: 0.64rem; font-weight: 700; padding: 4px 9px; border-radius: 20px; flex-shrink: 0; white-space: nowrap; }
+    .etiqueta-amarilla { background: #f9a825; color: white; }
     .etiqueta-verde { background: #2e7d32; color: white; }
     .etiqueta-gris { background: #78909c; color: white; }
 
@@ -1293,7 +1294,7 @@ function buscar(queryOriginal) {
         html += contenedoresMatch.slice(0, 8).map(({ contenedor, info }) => {
             const estado = estadoOperacion(contenedor);
             const claseEstado = estado === 'finalizado' ? 'estado-finalizado' : (estado === 'iniciado' ? 'estado-iniciado' : '');
-            const etiquetaEstado = estado === 'finalizado' ? '<span class="etiqueta-estado etiqueta-gris">✅ Finalizado</span>' : (estado === 'iniciado' ? '<span class="etiqueta-estado etiqueta-verde">🟢 En operación</span>' : '');
+            const etiquetaEstado = estado === 'finalizado' ? '<span class="etiqueta-estado etiqueta-gris">✅ Finalizado</span>' : (estado === 'iniciado' ? '<span class="etiqueta-estado etiqueta-amarilla">🟡 En operación</span>' : '');
             return `
             <div class="predictivo-item ${claseEstado}" data-tipo="contenedor" data-contenedor="${contenedor}">
                 <span class="emoji">📦</span>
