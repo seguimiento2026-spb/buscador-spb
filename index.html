@@ -887,7 +887,7 @@ function renderizarPestañasPrincipales() {
             </div>`;
         }).join('');
 
-    listaOp.innerHTML = htmlPendientes + htmlEnOperacion;
+    listaOp.innerHTML = htmlEnOperacion + htmlPendientes;
     // Tocar un contenedor pendiente abre su detalle, donde se puede marcar "Inicio Operación"
     listaOp.querySelectorAll('[data-contenedor-pendiente]').forEach(item => {
         item.onclick = () => mostrarContenedor(item.getAttribute('data-contenedor-pendiente'));
