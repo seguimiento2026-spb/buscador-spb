@@ -135,6 +135,9 @@
     }
     .tab-btn.activo .tab-contador { background: var(--primary-blue); }
     .lista-tab.hidden { display: none; }
+    /* AGREGADO: la lista de "Operaciones" muestra ~8 contenedores y el resto
+       se desliza con scroll, en vez de estirar toda la pantalla hacia abajo. */
+    #listaEnOperacion, #listaFinalizados, #listaPorAgencia { max-height: 460px; overflow-y: auto; }
     .lista-tab-item {
         display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-radius: 12px; margin-bottom: 8px;
         cursor: pointer; border-left: 4px solid transparent;
