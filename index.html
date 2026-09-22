@@ -1528,12 +1528,48 @@ function alternarBLsEnLista(contenedor, prefijo) {
     btn.textContent = abierto ? '📋 Ocultar BLs ▴' : '📋 Ver BLs completos ▾';
 }
 
+// NUEVO: deja constancia en la bitácora "historial" (la misma que usa el
+// Informe de Desembalaje) de lo que pasa en el PWA — quién, qué y cuándo.
+// Es "fire and forget": si falla, no interrumpe el trabajo de la persona.
+async function registrarAccionPWA(accion, contenedor) {
+    const { error } = await sb.from('historial').insert({
+        usuario_nombre: nombreCompletoUsuarioActual || 'Sistema',
+        accion: accion,
+        detalle: contenedor,
+        contenedor: contenedor,
+    });
+    if (error) console.warn('No se pudo registrar en historial desde el PWA:', error.message);
+}
+
+// NUEVO: cuando se marca Inicio o Finalización en el PWA, se refleja también
+// en informes_contenedor (la tabla que lee la pestaña "Consulta" del Informe
+// de Desembalaje), para que quede visible ahí de inmediato. Es "fire and
+// forget": si falla, no interrumpe el trabajo de la persona en el PWA.
+async function sincronizarInformeContenedorDesdeOperacion(cambios, esInicio, hora) {
+    const info = indiceContenedores.get(cambios.contenedor);
+    const payload = {
+        contenedor: cambios.contenedor,
+        fecha_vaciado: cambios.fecha,
+        proveedor: nombreCompletoUsuarioActual,
+    };
+    if (info) payload.agencia = info.agenciaNombre;
+    if (esInicio) payload.hora_inicio = hora; else payload.hora_final = hora;
+
+    const { error } = await sb.from('informes_contenedor')
+        .upsert(payload, { onConflict: 'contenedor,fecha_vaciado' });
+    if (error) console.warn('No se pudo sincronizar hacia informes_contenedor:', error.message);
+}
+
 async function marcarOperacion(tipo) {
     const esInicio = tipo === 'inicio';
     const input = document.getElementById(esInicio ? 'horaInicioInput' : 'horaFinInput');
     const btn = document.getElementById(esInicio ? 'btnInicioOperacion' : 'btnFinOperacion');
     const meta = document.getElementById(esInicio ? 'inicioMeta' : 'finMeta');
     const hora = input.value.trim();
+    // Para saber si esto es un registro nuevo o una corrección sobre una hora
+    // que ya estaba puesta, y que el historial cuente la verdad de lo que pasó.
+    const opPrevia = operacionesPorContenedor.get(contenedorActualOperacion);
+    const esCorreccion = !!(opPrevia && (esInicio ? opPrevia.hora_inicio : opPrevia.hora_fin));
 
     if (!horaValida(hora)) {
         mostrarToast('⚠️ Escribe una hora válida en formato militar, ej: 08:10 o 14:50', 4000);
@@ -1586,6 +1622,15 @@ async function marcarOperacion(tipo) {
         ? (esInicio ? '💾 CORREGIR HORA DE INICIO' : '💾 CORREGIR HORA DE FINALIZACIÓN')
         : (esInicio ? '✅ OPERACIÓN INICIADA' : '✅ OPERACIÓN FINALIZADA');
     mostrarToast(`✅ ${esInicio ? 'Inicio' : 'Finalización'} de operación registrado — ${hora}`);
+    // AGREGADO: además de operaciones_contenedor, se refleja también en
+    // informes_contenedor, para que aparezca de inmediato en la pestaña
+    // "Consulta" del Informe de Desembalaje, sin esperar a que alguien lo
+    // abra manualmente ahí.
+    sincronizarInformeContenedorDesdeOperacion(cambios, esInicio, hora);
+    const etiquetaAccion = esInicio
+        ? (esCorreccion ? 'Corrección de Hora de Inicio (PWA)' : 'Inicio de operación (PWA)')
+        : (esCorreccion ? 'Corrección de Hora de Finalización (PWA)' : 'Finalización de operación (PWA)');
+    registrarAccionPWA(etiquetaAccion, contenedorActualOperacion);
 
     const opExistente = operacionesPorContenedor.get(contenedorActualOperacion) || {};
     operacionesPorContenedor.set(contenedorActualOperacion, { ...opExistente, ...cambios });
