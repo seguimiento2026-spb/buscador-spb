@@ -806,22 +806,43 @@ function renderizarPestañasPrincipales() {
 
     const enOperacion = [];
     const finalizados = [];
+    const pendientes = []; // AGREGADO: contenedores del Excel que todavía no tienen ninguna operación
     const contenedoresAConsiderar = new Set([...indiceContenedores.keys(), ...operacionesPorContenedor.keys()]);
     for (const contenedor of contenedoresAConsiderar) {
         const estado = estadoOperacion(contenedor);
         if (estado === 'iniciado') enOperacion.push(contenedor);
         else if (estado === 'finalizado') finalizados.push(contenedor);
+        else if (indiceContenedores.has(contenedor)) pendientes.push(contenedor); // sin operación todavía
     }
     enOperacion.sort((a, b) => (operacionesPorContenedor.get(b).hora_inicio || '').localeCompare(operacionesPorContenedor.get(a).hora_inicio || ''));
     finalizados.sort((a, b) => (operacionesPorContenedor.get(b).hora_fin || '').localeCompare(operacionesPorContenedor.get(a).hora_fin || ''));
+    pendientes.sort((a, b) => a.localeCompare(b));
 
     document.getElementById('contadorOperacion').textContent = enOperacion.length;
     document.getElementById('contadorFinalizados').textContent = finalizados.length;
 
+    // AGREGADO: lista desplegada de contenedores pendientes de iniciar, para
+    // no tener que buscarlos uno por uno — tocar uno abre su detalle donde
+    // se puede marcar "Inicio Operación".
+    const htmlPendientes = pendientes.length === 0 ? '' : `
+        <div class="predictivo-seccion-titulo">📦 Pendientes de iniciar (${pendientes.length})</div>
+        ${pendientes.map(contenedor => {
+            const info = indiceContenedores.get(contenedor);
+            return `<div class="predictivo-item" data-tipo="contenedor" data-contenedor-pendiente="${contenedor}">
+                <span class="emoji">📦</span>
+                <div class="texto">
+                    <div class="principal">${contenedor}</div>
+                    <div class="secundario">${info.agenciaNombre}</div>
+                </div>
+                <span class="contador">${info.registros.length} BL</span>
+            </div>`;
+        }).join('')}
+    `;
+
     const listaOp = document.getElementById('listaEnOperacion');
-    listaOp.innerHTML = enOperacion.length === 0
-        ? `<div class="lista-tab-vacia">Ningún contenedor en operación todavía.<br>Ábrelo y marca "Inicio Operación" para que aparezca aquí.</div>`
-        : enOperacion.map(contenedor => {
+    const htmlEnOperacion = enOperacion.length === 0
+        ? (pendientes.length === 0 ? `<div class="lista-tab-vacia">Ningún contenedor en operación todavía.<br>Ábrelo y marca "Inicio Operación" para que aparezca aquí.</div>` : '')
+        : `<div class="predictivo-seccion-titulo">🟢 En operación (${enOperacion.length})</div>` + enOperacion.map(contenedor => {
             const info = indiceContenedores.get(contenedor) || { agenciaNombre: 'Agencia no disponible (Excel no cargado)', agenciaCodigo: '', registros: [] };
             const op = operacionesPorContenedor.get(contenedor);
             return `<div class="contenedor-acordeon semaforo-amarillo" data-contenedor-op="${contenedor}">
@@ -861,6 +882,12 @@ function renderizarPestañasPrincipales() {
                 </div>
             </div>`;
         }).join('');
+
+    listaOp.innerHTML = htmlPendientes + htmlEnOperacion;
+    // Tocar un contenedor pendiente abre su detalle, donde se puede marcar "Inicio Operación"
+    listaOp.querySelectorAll('[data-contenedor-pendiente]').forEach(item => {
+        item.onclick = () => mostrarContenedor(item.getAttribute('data-contenedor-pendiente'));
+    });
 
     const listaFin = document.getElementById('listaFinalizados');
     listaFin.innerHTML = finalizados.length === 0
