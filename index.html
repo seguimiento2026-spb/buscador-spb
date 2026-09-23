@@ -574,6 +574,7 @@ let sincronizacionesVaciasSeguidas = 0;
 let indiceContenedores = new Map();
 let operacionesPorContenedor = new Map();
 let ultimaSincronizacion = null;
+let canalPropioPerfil = null; // canal de escucha en vivo de mi propio perfil (profiles)
 
 function emailDesdeUsuario(username) {
     return `${username.trim().toLowerCase()}@spbapp.com`;
@@ -641,6 +642,7 @@ async function cerrarSesion() {
     await sb.auth.signOut();
     desactivarSincronizacionAutomatica();
     desactivarPollingCambios();
+    if (canalPropioPerfil) { sb.removeChannel(canalPropioPerfil); canalPropioPerfil = null; }
     document.getElementById('appScreen').classList.add('hidden');
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('loginUser').value = '';
@@ -657,6 +659,32 @@ async function mostrarApp() {
     await sincronizar(true);
     activarSincronizacionAutomatica();
     activarPollingCambios();
+    suscribirCambiosPropioPerfil();
+}
+
+// NUEVO: escucha en vivo los cambios de MI PROPIO perfil (profiles). Si un
+// Admin me apaga el acceso al PWA mientras ya estoy adentro, me saca al
+// instante — no hace falta esperar a que yo cierre sesión y vuelva a entrar.
+function suscribirCambiosPropioPerfil() {
+    if (canalPropioPerfil) return;
+    sb.auth.getSession().then(({ data }) => {
+        const uid = data && data.session && data.session.user && data.session.user.id;
+        if (!uid) return;
+        canalPropioPerfil = sb.channel(`mi-perfil-pwa-${uid}`)
+            .on('postgres_changes', {
+                event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${uid}`
+            }, async (payload) => {
+                const fila = payload.new || {};
+                if (fila.pwa_habilitado === false) {
+                    mostrarToast('🔒 Un administrador te quitó el acceso a esta app', 5000);
+                    setTimeout(() => cerrarSesion(), 1500);
+                } else if (fila.activo === false) {
+                    mostrarToast('🔒 Tu cuenta fue desactivada', 5000);
+                    setTimeout(() => cerrarSesion(), 1500);
+                }
+            })
+            .subscribe();
+    });
 }
 
 let canalRealtimeExcel = null;
@@ -1455,6 +1483,7 @@ async function agregarFuncionarioDesdeLista(contenedor) {
     if (error) { mostrarToast('❌ ' + error.message, 5000); return; }
     horaInput.value = horaActualStr();
     mostrarToast(`✅ Funcionario agregado — ${hora}`);
+    registrarAccionPWA(`Funcionario ${contadorActual + 1} agregado — llegada ${hora}`, contenedor);
     cargarFuncionariosEnLista(contenedor);
 }
 
@@ -1719,6 +1748,7 @@ async function agregarFuncionario() {
 
     horaInput.value = horaActualStr();
     mostrarToast(`✅ Funcionario ${numeroFuncionario} agregado — ${hora}`);
+    registrarAccionPWA(`Funcionario ${numeroFuncionario} agregado — llegada ${hora}`, contenedorActualOperacion);
     cargarFuncionarios(contenedorActualOperacion);
 }
 
@@ -1726,6 +1756,7 @@ async function quitarFuncionario(id, contenedor) {
     if (!confirm('¿Quitar este funcionario de la lista?')) return;
     const { error } = await sb.from('funcionarios_contenedor').delete().eq('id', id);
     if (error) { mostrarToast('❌ ' + error.message, 4000); return; }
+    registrarAccionPWA('Funcionario quitado de la lista', contenedor);
     cargarFuncionarios(contenedor);
 }
 
