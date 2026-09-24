@@ -568,6 +568,23 @@ const SUPABASE_URL = 'https://zqrcxqjjycmqkolqasrb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxcmN4cWpqeWNtcWtvbHFhc3JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTU4MTAsImV4cCI6MjEwMDMzMTgxMH0.bJBmUiSNPA6KVj9iHMrnybVJt7in04NjIzqOZg955L8';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// AGREGADO: igual que en el Informe — si la pestaña queda mucho tiempo en
+// segundo plano (por ejemplo, toda la noche), el navegador puede pausar el
+// temporizador que renueva el token de sesión, y termina venciéndose de
+// verdad. Esto le avisa a Supabase cuándo la pestaña vuelve a estar activa,
+// para que retome la renovación al instante.
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+        sb.auth.startAutoRefresh();
+        const { data } = await sb.auth.getSession();
+        if (data.session && data.session.expires_at && data.session.expires_at * 1000 < Date.now()) {
+            await sb.auth.refreshSession();
+        }
+    } else {
+        sb.auth.stopAutoRefresh();
+    }
+});
+
 let allRecords = [];
 let agenciasList = [];
 let sincronizacionesVaciasSeguidas = 0;
